@@ -10,7 +10,7 @@ const Navigation = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-6 py-3 flex items-center justify-between">
         <a href="/" className="flex items-center gap-3">
-          <img src={logo} alt="HarmoniQ" className="w-10 h-10 object-contain" />
+          <img src={logo} alt="HarmoniQ" className="w-14 h-14 object-contain" />
           <span className="font-bold text-xl text-secondary dark:text-foreground">HarmoniQ</span>
         </a>
         
