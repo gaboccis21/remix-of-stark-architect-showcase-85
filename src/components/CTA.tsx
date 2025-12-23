@@ -51,7 +51,7 @@ const CTA = () => {
             <Button 
               size="lg" 
               variant="outline" 
-              className="border-primary/50 text-white hover:bg-primary/10 text-lg px-10 py-6"
+              className="border-primary/50 text-foreground hover:bg-primary/10 text-lg px-10 py-6"
             >
               View Documentation
             </Button>
