@@ -56,13 +56,6 @@ const Hero = () => {
         </div>
       </div>
       
-      {/* Scroll Indicator */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 reveal-delayed">
-        <div className="w-px h-16 bg-primary/40" />
-        <div className="text-minimal text-primary/60 mt-4 rotate-90 origin-center">
-          SCROLL
-        </div>
-      </div>
     </section>;
 };
 export default Hero;
