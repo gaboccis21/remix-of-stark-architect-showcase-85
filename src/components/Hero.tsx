@@ -31,7 +31,7 @@ const Hero = () => {
       <div className="relative z-10 text-center max-w-4xl mx-auto px-6 pt-20">
         {/* Logo */}
         <div className="mb-8 reveal">
-          <img alt="HarmoniQ logo" decoding="async" className="w-32 h-32 md:w-40 md:h-40 mx-auto drop-shadow-2xl object-contain" src={logo} />
+          <img alt="HarmoniQ logo" decoding="async" className="w-40 h-40 md:w-52 md:h-52 mx-auto drop-shadow-2xl object-contain" src={logo} />
         </div>
         
         <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white text-architectural mb-4 reveal">
