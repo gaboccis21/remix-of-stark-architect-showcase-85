@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Music, Rocket } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const CTA = () => {
   return (
@@ -42,12 +43,14 @@ const CTA = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              size="lg" 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-10 py-6 font-semibold shadow-lg shadow-primary/30"
-            >
-              Launch Validator
-            </Button>
+            <Link to="/validator">
+              <Button 
+                size="lg" 
+                className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-10 py-6 font-semibold shadow-lg shadow-primary/30"
+              >
+                Launch Validator
+              </Button>
+            </Link>
             <Button 
               size="lg" 
               variant="outline" 
