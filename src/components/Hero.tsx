@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Music, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import logo from "@/assets/harmoniq-logo.png";
 const Hero = () => {
   return <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-secondary dark:bg-background">
@@ -47,9 +48,11 @@ const Hero = () => {
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 justify-center reveal-delayed">
-          <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8 py-6 shadow-lg shadow-primary/30">
-            Try Validator Now
-          </Button>
+          <Link to="/validator">
+            <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8 py-6 shadow-lg shadow-primary/30">
+              Try Validator Now
+            </Button>
+          </Link>
           <Button size="lg" variant="outline" className="border-primary/50 text-foreground hover:bg-primary/10 text-lg px-8 py-6">
             Learn More
           </Button>
