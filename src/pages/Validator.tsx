@@ -183,9 +183,9 @@ const Validator = () => {
       <div className="text-white p-6 pt-24">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-8 animate-fade-in">
+          <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <Music className="w-12 h-12 text-purple-400 animate-pulse" />
+              <Music className="w-12 h-12 text-purple-400" />
               <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Chord Validator
               </h1>
@@ -196,7 +196,7 @@ const Validator = () => {
           {/* Main Content Grid */}
           <div className="grid lg:grid-cols-2 gap-6 mb-6">
             {/* Input Section */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-6 border border-purple-500/20 animate-fade-in [animation-delay:200ms] opacity-0 [animation-fill-mode:forwards] hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
+            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-6 border border-purple-500/20">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="w-5 h-5 text-yellow-400" />
                 <h2 className="text-xl font-semibold">Enter Chord Progression</h2>
@@ -205,7 +205,7 @@ const Validator = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="C, Dm, G7, C"
-                className="w-full h-32 bg-slate-900/50 border border-purple-500/30 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300 font-mono text-lg hover:border-purple-500/50"
+                className="w-full h-32 bg-slate-900/50 border border-purple-500/30 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-mono text-lg"
               />
               <p className="text-sm text-gray-400 mt-2 flex items-center gap-2">
                 <Info className="w-4 h-4" />
@@ -215,7 +215,7 @@ const Validator = () => {
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => setInput('')}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all duration-300 hover:scale-105"
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Clear
@@ -224,7 +224,7 @@ const Validator = () => {
                   <button
                     onClick={() => playProgression(result.chords)}
                     disabled={isPlaying}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-all duration-300 disabled:opacity-50 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/30"
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50"
                   >
                     {isPlaying ? <Volume2 className="w-4 h-4 animate-pulse" /> : <Play className="w-4 h-4" />}
                     Play Progression
@@ -240,8 +240,7 @@ const Validator = () => {
                     <button
                       key={i}
                       onClick={() => handleExample(ex.chords)}
-                      className="text-left p-3 bg-slate-900/50 hover:bg-purple-900/30 rounded-lg border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-md hover:shadow-purple-500/10"
-                      style={{ animationDelay: `${300 + i * 100}ms` }}
+                      className="text-left p-3 bg-slate-900/50 hover:bg-purple-900/30 rounded-lg border border-purple-500/20 hover:border-purple-500/50 transition-all"
                     >
                       <div className="text-xs text-purple-400 font-semibold">{ex.name}</div>
                       <div className="text-xs text-gray-400 font-mono mt-1">{ex.chords}</div>
@@ -252,7 +251,7 @@ const Validator = () => {
             </div>
 
             {/* NFA Visualization */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-6 border border-purple-500/20 animate-fade-in [animation-delay:400ms] opacity-0 [animation-fill-mode:forwards] hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
+            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-6 border border-purple-500/20">
               <h2 className="text-xl font-semibold mb-4">NFA State Diagram</h2>
               <div className="relative bg-slate-900/50 rounded-xl border border-purple-500/20 overflow-hidden">
                 <svg viewBox="0 0 840 560" className="w-full h-auto">
@@ -266,43 +265,42 @@ const Validator = () => {
                     </marker>
                   </defs>
                   
-                  <g className="animate-fade-in [animation-delay:600ms] opacity-0 [animation-fill-mode:forwards]">
+                  <g>
                     {/* q0 -> q1 */}
-                    <line x1="120" y1="280" x2="200" y2="280" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" className="transition-all duration-500" />
+                    <line x1="120" y1="280" x2="200" y2="280" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" />
                     {/* q1 -> q2 */}
-                    <line x1="280" y1="250" x2="380" y2="160" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" className="transition-all duration-500" />
+                    <line x1="280" y1="250" x2="380" y2="160" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" />
                     {/* q1 -> q4 */}
-                    <line x1="280" y1="310" x2="380" y2="400" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" className="transition-all duration-500" />
+                    <line x1="280" y1="310" x2="380" y2="400" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" />
                     {/* q2 -> q3 */}
-                    <line x1="460" y1="150" x2="550" y2="250" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" className="transition-all duration-500" />
+                    <line x1="460" y1="150" x2="550" y2="250" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" />
                     {/* q4 -> q3 */}
-                    <line x1="460" y1="410" x2="550" y2="310" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" className="transition-all duration-500" />
+                    <line x1="460" y1="410" x2="550" y2="310" stroke="#8b5cf6" strokeWidth="3" markerEnd="url(#arrowhead)" />
                     {/* q3 -> accept */}
-                    <line x1="640" y1="280" x2="710" y2="280" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrowhead-green)" className="transition-all duration-500" />
+                    <line x1="640" y1="280" x2="710" y2="280" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrowhead-green)" />
                   </g>
 
                   {/* Draw states */}
-                  {Object.entries(states).map(([key, state], index) => {
+                  {Object.entries(states).map(([key, state]) => {
                     const isActive = activeStates.includes(key);
                     const isStart = key === 'q0';
                     return (
-                      <g key={key} className="animate-scale-in opacity-0 [animation-fill-mode:forwards]" style={{ animationDelay: `${700 + index * 100}ms` }}>
+                      <g key={key}>
                         <circle
                           cx={state.position.x}
                           cy={state.position.y}
                           r="45"
-                          fill={isActive ? (key === 'accept' ? '#10b981' : '#8b5cf6') : '#4b5563'}
+                          fill={isActive ? (key === 'accept' ? '#10b981' : '#6b7280') : '#4b5563'}
                           strokeWidth={isActive ? "4" : "2"}
                           stroke={isStart ? "#fbbf24" : isActive ? "#fbbf24" : "#64748b"}
-                          className="transition-all duration-500"
-                          style={{ filter: isActive ? 'drop-shadow(0 0 12px rgba(139, 92, 246, 0.6))' : 'none' }}
+                          className="transition-all duration-300"
                         />
                         <text
                           x={state.position.x}
                           y={state.position.y}
                           textAnchor="middle"
                           dy=".3em"
-                          className="text-sm font-bold fill-white transition-all duration-300"
+                          className="text-sm font-bold fill-white"
                         >
                           {state.name}
                         </text>
@@ -314,16 +312,16 @@ const Validator = () => {
 
               {/* Chord History */}
               {chordHistory.length > 0 && (
-                <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-purple-500/20 animate-fade-in">
+                <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-purple-500/20">
                   <h3 className="text-sm font-semibold text-gray-400 mb-2">Transition Path:</h3>
                   <div className="flex flex-wrap gap-2">
                     {chordHistory.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2 animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
-                        <span className="px-3 py-1 bg-purple-600 rounded-full text-sm font-mono shadow-lg shadow-purple-500/30 hover:scale-110 transition-transform duration-200">
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="px-3 py-1 bg-purple-600 rounded-full text-sm font-mono">
                           {item.chord}
                         </span>
                         {i < chordHistory.length - 1 && (
-                          <span className="text-purple-400 animate-pulse">→</span>
+                          <span className="text-purple-400">→</span>
                         )}
                       </div>
                     ))}
@@ -335,26 +333,26 @@ const Validator = () => {
 
           {/* Results Section */}
           {result && (
-            <div className={`bg-slate-800/50 backdrop-blur rounded-2xl p-6 border animate-fade-in transition-all duration-500 ${
-              result.valid ? 'border-emerald-500/50 shadow-lg shadow-emerald-500/10' : 'border-red-500/50 shadow-lg shadow-red-500/10'
+            <div className={`bg-slate-800/50 backdrop-blur rounded-2xl p-6 border ${
+              result.valid ? 'border-emerald-500/50' : 'border-red-500/50'
             } mb-6`}>
               <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-full transition-all duration-300 ${result.valid ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                <div className={`p-3 rounded-full ${result.valid ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
                   {result.valid ? (
-                    <CheckCircle className="w-8 h-8 text-emerald-400 animate-scale-in" />
+                    <CheckCircle className="w-8 h-8 text-emerald-400" />
                   ) : (
-                    <XCircle className="w-8 h-8 text-red-400 animate-scale-in" />
+                    <XCircle className="w-8 h-8 text-red-400" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <h3 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${result.valid ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <h3 className={`text-2xl font-bold mb-2 ${result.valid ? 'text-emerald-400' : 'text-red-400'}`}>
                     {result.message}
                   </h3>
                   <p className="text-gray-300 mb-4">{result.explanation}</p>
                   {result.valid && (
-                    <div className="bg-slate-900/50 rounded-lg p-4 border border-emerald-500/20 animate-fade-in [animation-delay:200ms] opacity-0 [animation-fill-mode:forwards]">
+                    <div className="bg-slate-900/50 rounded-lg p-4 border border-emerald-500/20">
                       <h4 className="font-semibold text-emerald-400 mb-2 flex items-center gap-2">
-                        <Lightbulb className="w-4 h-4 animate-pulse" />
+                        <Lightbulb className="w-4 h-4" />
                         Harmonic Analysis:
                       </h4>
                       <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
@@ -364,9 +362,9 @@ const Validator = () => {
                   )}
 
                   {result.suggestions && result.suggestions.length > 0 && (
-                    <div className="mt-4 bg-slate-900/50 rounded-lg p-4 border border-purple-500/20 animate-fade-in [animation-delay:300ms] opacity-0 [animation-fill-mode:forwards]">
+                    <div className="mt-4 bg-slate-900/50 rounded-lg p-4 border border-purple-500/20">
                       <h4 className="font-semibold text-purple-400 mb-2 flex items-center gap-2">
-                        <Lightbulb className="w-4 h-4 animate-pulse" />
+                        <Lightbulb className="w-4 h-4" />
                         Suggested next chords:
                       </h4>
                       <div className="flex flex-wrap gap-2">
@@ -374,8 +372,7 @@ const Validator = () => {
                           <button
                             key={i}
                             onClick={() => setInput(input + (input.trim() ? ', ' : '') + chord)}
-                            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-full text-sm font-mono transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-purple-500/30"
-                            style={{ animationDelay: `${400 + i * 100}ms` }}
+                            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-full text-sm font-mono transition-colors"
                           >
                             {chord}
                           </button>
