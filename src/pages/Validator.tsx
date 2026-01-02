@@ -447,7 +447,7 @@ const Validator = () => {
 
             {/* Live Suggestions */}
             {input.trim() && liveSuggestions.length > 0 && !hasValidated && (
-              <div className="mt-4 p-3 bg-secondary/50 dark:bg-card/50 rounded-lg border border-primary/20">
+              <div className="mt-4 p-3 bg-background/60 dark:bg-black/50 backdrop-blur-md rounded-xl border border-primary/30 shadow-lg">
                 <h3 className="text-xs font-semibold text-primary mb-2 flex items-center gap-2">
                   <Lightbulb className="w-3 h-3" />
                   Suggested next chords:
@@ -457,7 +457,7 @@ const Validator = () => {
                     <button
                       key={i}
                       onClick={() => setInput(input + (input.trim().endsWith(',') ? ' ' : ', ') + chord)}
-                      className="px-3 py-1.5 bg-primary/20 hover:bg-primary/40 text-primary border border-primary/30 rounded-full text-xs font-mono transition-colors"
+                      className="px-3 py-1.5 bg-background/80 dark:bg-black/60 hover:bg-primary/30 text-primary border border-primary/40 rounded-full text-xs font-mono transition-all shadow-lg backdrop-blur-sm hover:shadow-primary/20 hover:scale-105"
                     >
                       {chord}
                     </button>
@@ -474,7 +474,7 @@ const Validator = () => {
                   <button
                     key={i}
                     onClick={() => handleExample(ex.chords)}
-                    className="text-left p-2.5 bg-secondary/30 dark:bg-card/50 hover:bg-primary/10 rounded-lg border border-primary/20 hover:border-primary/50 transition-all"
+                    className="text-left p-2.5 bg-background/60 dark:bg-black/50 backdrop-blur-md hover:bg-primary/20 rounded-xl border border-primary/30 hover:border-primary/50 transition-all shadow-md hover:shadow-lg hover:scale-[1.02]"
                   >
                     <div className="text-xs text-primary font-semibold">{ex.name}</div>
                     <div className="text-[10px] text-muted-foreground">{ex.desc}</div>
@@ -492,7 +492,7 @@ const Validator = () => {
                   <button
                     key={i}
                     onClick={() => handleExample(ex.chords)}
-                    className="text-left p-2.5 bg-secondary/30 dark:bg-card/50 hover:bg-destructive/10 rounded-lg border border-destructive/20 hover:border-destructive/50 transition-all"
+                    className="text-left p-2.5 bg-background/60 dark:bg-black/50 backdrop-blur-md hover:bg-destructive/20 rounded-xl border border-destructive/30 hover:border-destructive/50 transition-all shadow-md hover:shadow-lg hover:scale-[1.02]"
                   >
                     <div className="text-xs text-destructive font-semibold">{ex.name}</div>
                     <div className="text-[10px] text-muted-foreground">{ex.desc}</div>
@@ -637,12 +637,12 @@ const Validator = () => {
 
             {/* Chord History */}
             {chordHistory.length > 0 && (
-              <div className="mt-4 p-3 bg-secondary/50 dark:bg-card/50 rounded-lg border border-primary/20">
+              <div className="mt-4 p-3 bg-background/60 dark:bg-black/50 backdrop-blur-md rounded-xl border border-primary/30 shadow-lg">
                 <h3 className="text-xs font-semibold text-muted-foreground mb-2">Transition Path:</h3>
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {chordHistory.map((item, i) => (
                     <React.Fragment key={i}>
-                      <span className="px-2.5 py-1 bg-primary/20 text-primary border border-primary/30 rounded-full text-xs font-mono">
+                      <span className="px-3 py-1.5 bg-background/80 dark:bg-black/70 text-primary border border-primary/40 rounded-full text-xs font-mono shadow-md backdrop-blur-sm">
                         {item.chord} <span className="text-primary-foreground/70">({item.function})</span>
                       </span>
                       {i < chordHistory.length - 1 && (
@@ -676,8 +676,8 @@ const Validator = () => {
                 <p className="text-muted-foreground text-sm">{result.explanation}</p>
 
                 {result.suggestions && result.suggestions.length > 0 && (
-                  <div className="mt-4 bg-secondary/30 dark:bg-card/50 rounded-lg p-3 border border-primary/20">
-                    <h4 className="font-semibold text-primary text-sm mb-2 flex items-center gap-2">
+                  <div className="mt-4 bg-background/60 dark:bg-black/50 backdrop-blur-md rounded-xl p-4 border border-primary/30 shadow-lg">
+                    <h4 className="font-semibold text-primary text-sm mb-3 flex items-center gap-2">
                       <Lightbulb className="w-4 h-4" />
                       Suggested next chords:
                     </h4>
@@ -686,7 +686,7 @@ const Validator = () => {
                         <button
                           key={i}
                           onClick={() => setInput(input + (input.trim() ? ', ' : '') + chord)}
-                          className="px-3 py-1.5 bg-primary/20 hover:bg-primary/40 text-primary border border-primary/30 rounded-full text-xs font-mono transition-colors"
+                          className="px-3 py-1.5 bg-background/80 dark:bg-black/60 hover:bg-primary/30 text-primary border border-primary/40 rounded-full text-xs font-mono transition-all shadow-lg backdrop-blur-sm hover:shadow-primary/20 hover:scale-105"
                         >
                           {chord}
                         </button>
