@@ -1,25 +1,49 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { Play, Volume2, Info, Zap, CheckCircle, XCircle, Music, Lightbulb, RotateCcw, BookOpen, X, Code, Cpu, GraduationCap, Home } from 'lucide-react';
+import { Play, Volume2, Info, Zap, CheckCircle, XCircle, Music, Lightbulb, RotateCcw, BookOpen, X, Code, Cpu, GraduationCap } from 'lucide-react';
+
+interface ChordSuggestion {
+  chord: string;
+  function: string;
+}
+
+interface ChordHistoryItem {
+  chord: string;
+  function: string;
+  states: string[];
+}
+
+interface ValidationResult {
+  valid: boolean;
+  message: string;
+  explanation: string;
+  failedAt?: number;
+  chords?: string[];
+  rule?: string;
+  functions?: string[];
+  suggestions?: ChordSuggestion[];
+  incomplete?: boolean;
+}
 
 const Validator = () => {
   const [input, setInput] = useState('');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ValidationResult | null>(null);
   const [activeStates, setActiveStates] = useState(['q0']);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [chordHistory, setChordHistory] = useState<any[]>([]);
+  const [chordHistory, setChordHistory] = useState<ChordHistoryItem[]>([]);
   const [showLearnMore, setShowLearnMore] = useState(false);
-  const [liveSuggestions, setLiveSuggestions] = useState<string[]>([]);
+  const [liveSuggestions, setLiveSuggestions] = useState<ChordSuggestion[]>([]);
   const [hasValidated, setHasValidated] = useState(false);
   const [selectedKey, setSelectedKey] = useState('C');
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // NFA State definitions - Following Functional Harmony Rules
   const states: Record<string, { name: string; color: string; position: { x: number; y: number } }> = {
-    q0: { name: 'START', color: 'bg-purple-500', position: { x: 80, y: 180 } },
-    q1: { name: 'TONIC', color: 'bg-blue-500', position: { x: 220, y: 180 } },
-    q2: { name: 'PREDOM', color: 'bg-green-500', position: { x: 360, y: 80 } },
-    q3: { name: 'DOM', color: 'bg-orange-500', position: { x: 360, y: 280 } },
+    q0: { name: 'START', color: 'bg-cyan-500', position: { x: 80, y: 180 } },
+    q1: { name: 'TONIC', color: 'bg-sky-500', position: { x: 220, y: 180 } },
+    q2: { name: 'PREDOM', color: 'bg-teal-500', position: { x: 360, y: 80 } },
+    q3: { name: 'DOM', color: 'bg-blue-500', position: { x: 360, y: 280 } },
     q_reject: { name: 'REJECT', color: 'bg-red-500', position: { x: 500, y: 180 } },
   };
 
@@ -120,6 +144,7 @@ const Validator = () => {
   const getInvalidExamples = () => {
     const d = getScaleDegrees(selectedKey);
     return [
+      { name: 'Wrong Starting Chord', chords: `${d[4]}, ${d[0]}`, desc: 'Must start with Tonic' },
       { name: 'Plagal Without Dom', chords: `${d[0]}, ${d[3]}, ${d[0]}`, desc: 'IV → I directly' },
       { name: 'Retrograde Motion', chords: `${d[0]}, ${d[4]}, ${d[3]}`, desc: 'V → IV prohibited' },
     ];
@@ -133,11 +158,13 @@ const Validator = () => {
     setActiveStates(['q0']);
     setChordHistory([]);
     setLiveSuggestions([]);
+    setIsAnimating(false);
+    setCurrentStep(0);
   };
 
   const playChord = async (frequencies: number[]) => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
     const now = ctx.currentTime;
@@ -157,29 +184,93 @@ const Validator = () => {
 
   const playProgression = async (chords: string[]) => {
     setIsPlaying(true);
-    for (let chord of chords) {
-      if (chordFrequencies[chord]) {
-        await playChord(chordFrequencies[chord]);
-        await new Promise(resolve => setTimeout(resolve, 900));
-      }
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     }
+    if (audioContextRef.current.state === 'suspended') {
+      await audioContextRef.current.resume();
+    }
+
+    setActiveStates(['q0']);
+    setChordHistory([]);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    let currentStates = ['q0'];
+    const history: ChordHistoryItem[] = [];
+
+    for (let i = 0; i < chords.length; i++) {
+      const chord = chords[i];
+      const chordFunction = chordToFunction[chord];
+
+      if (!chordFunction) {
+        setIsPlaying(false);
+        return;
+      }
+
+      const nextStates: string[] = [];
+      let shouldReject = false;
+
+      currentStates.forEach(state => {
+        if (transitions[state] && transitions[state][chordFunction]) {
+          nextStates.push(...transitions[state][chordFunction]);
+        } else if (state === 'q0' && (chordFunction === 'IV' || chordFunction === 'ii' || chordFunction === 'V' || chordFunction === 'vii°')) {
+          shouldReject = true;
+          nextStates.push('q_reject');
+        } else if (state === 'q3' && (chordFunction === 'IV' || chordFunction === 'ii')) {
+          shouldReject = true;
+          nextStates.push('q_reject');
+        } else if (state === 'q2' && (chordFunction === 'I' || chordFunction === 'vi' || chordFunction === 'iii')) {
+          shouldReject = true;
+          nextStates.push('q_reject');
+        } else if (!transitions[state] || !transitions[state][chordFunction]) {
+          shouldReject = true;
+          nextStates.push('q_reject');
+        }
+      });
+
+      const uniqueNextStates = [...new Set(nextStates)];
+      setActiveStates(uniqueNextStates);
+      const newHistoryItem: ChordHistoryItem = { chord: chord, function: chordFunction, states: [...uniqueNextStates] };
+      history.push(newHistoryItem);
+      setChordHistory([...history]);
+
+      if (chordFrequencies[chord]) {
+        playChord(chordFrequencies[chord]);
+      }
+
+      if (shouldReject || uniqueNextStates.includes('q_reject')) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        setIsPlaying(false);
+        return;
+      }
+
+      currentStates = uniqueNextStates;
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+
     setIsPlaying(false);
   };
 
-  const validateProgression = (inputStr: string) => {
+  const animateValidation = async (inputStr: string) => {
     const chords = inputStr.split(',').map(c => c.trim()).filter(c => c);
     if (chords.length === 0) {
       setResult(null);
       setActiveStates(['q0']);
       setChordHistory([]);
+      setIsAnimating(false);
       return;
     }
 
     let currentStates = ['q0'];
-    const history: any[] = [];
-    let rejectionReason: any = null;
+    const history: ChordHistoryItem[] = [];
+    let rejectionReason: { rule: string; explanation: string } | null = null;
+
+    setActiveStates(['q0']);
+    setChordHistory([]);
+    await new Promise(resolve => setTimeout(resolve, 600));
 
     for (let i = 0; i < chords.length; i++) {
+      setCurrentStep(i + 1);
       const chordSymbol = chords[i];
       const chordFunction = chordToFunction[chordSymbol];
 
@@ -187,12 +278,13 @@ const Validator = () => {
         setResult({
           valid: false,
           message: `Unknown chord: "${chordSymbol}"`,
-          explanation: `The chord "${chordSymbol}" is not recognized. Please use supported chord symbols: C, Dm, Em, F, G, G7, Am, Bdim`,
+          explanation: `The chord "${chordSymbol}" is not recognized. Please use supported chord symbols from the selected key.`,
           failedAt: i,
           chords: chords,
         });
         setActiveStates([]);
         setChordHistory(history);
+        setIsAnimating(false);
         return;
       }
 
@@ -200,6 +292,12 @@ const Validator = () => {
       currentStates.forEach(state => {
         if (transitions[state] && transitions[state][chordFunction]) {
           nextStates.push(...transitions[state][chordFunction]);
+        } else if (state === 'q0' && (chordFunction === 'IV' || chordFunction === 'ii' || chordFunction === 'V' || chordFunction === 'vii°')) {
+          rejectionReason = {
+            rule: 'Must Start with Tonic',
+            explanation: `Chord progressions must begin with a Tonic chord (I, vi, or iii). Starting with ${chordSymbol} (${chordFunction}) is not permitted in functional harmony.`,
+          };
+          nextStates.push('q_reject');
         } else if (state === 'q3' && (chordFunction === 'IV' || chordFunction === 'ii')) {
           rejectionReason = {
             rule: 'Retrograde Prohibition',
@@ -220,6 +318,12 @@ const Validator = () => {
           rule: 'Invalid Transition',
           explanation: `The chord "${chordSymbol}" (${chordFunction}) cannot follow the previous chord(s) according to functional harmony rules.`,
         };
+
+        setActiveStates(['q_reject']);
+        const newHistory: ChordHistoryItem[] = [...history, { chord: chordSymbol, function: chordFunction, states: ['q_reject'] }];
+        setChordHistory(newHistory);
+        await new Promise(resolve => setTimeout(resolve, 800));
+
         setResult({
           valid: false,
           message: `❌ Invalid Progression`,
@@ -228,13 +332,17 @@ const Validator = () => {
           chords: chords,
           rule: reason.rule,
         });
-        setActiveStates(['q_reject']);
-        setChordHistory(history);
+        setIsAnimating(false);
         return;
       }
 
-      history.push({ chord: chordSymbol, function: chordFunction, states: [...nextStates] });
-      currentStates = [...new Set(nextStates)];
+      const uniqueNextStates = [...new Set(nextStates)];
+      setActiveStates(uniqueNextStates);
+      const newHistory: ChordHistoryItem[] = [...history, { chord: chordSymbol, function: chordFunction, states: [...uniqueNextStates] }];
+      setChordHistory(newHistory);
+      history.push({ chord: chordSymbol, function: chordFunction, states: [...uniqueNextStates] });
+      currentStates = uniqueNextStates;
+      await new Promise(resolve => setTimeout(resolve, 800));
     }
 
     const isValid = currentStates.includes('q1');
@@ -247,7 +355,7 @@ const Validator = () => {
         message: '✓ Valid Progression - Accepted!',
         explanation: analyzeProgression(history),
         chords: chords,
-        functions: history.map((h: any) => h.function),
+        functions: history.map((h) => h.function),
       });
     } else {
       setResult({
@@ -259,9 +367,10 @@ const Validator = () => {
         incomplete: true,
       });
     }
+    setIsAnimating(false);
   };
 
-  const analyzeProgression = (history: any[]) => {
+  const analyzeProgression = (history: ChordHistoryItem[]) => {
     const functionDescriptions: Record<string, string> = {
       'I': 'Tonic (I) - Establishes key center',
       'vi': 'Tonic function (vi) - Relative minor',
@@ -286,22 +395,42 @@ const Validator = () => {
     return analysis + cadenceType;
   };
 
-  const getCurrentStateName = (states: string[]) => {
+  const getCurrentStateName = (stateList: string[]) => {
     const stateNames: Record<string, string> = { 'q0': 'START', 'q1': 'TONIC', 'q2': 'PREDOMINANT', 'q3': 'DOMINANT', 'q_reject': 'REJECTED' };
-    return states.map(s => stateNames[s]).join(' or ');
+    return stateList.map(s => stateNames[s]).join(' or ');
   };
 
-  const getSuggestions = (currentStates: string[]) => {
-    const suggestions = new Set<string>();
+  const getSuggestions = (currentStates: string[]): ChordSuggestion[] => {
+    const suggestedFunctions = new Set<string>();
     currentStates.forEach(state => {
       if (transitions[state]) {
-        Object.keys(transitions[state]).forEach(chord => suggestions.add(chord));
+        Object.keys(transitions[state]).forEach(func => suggestedFunctions.add(func));
       }
     });
-    return Array.from(suggestions);
+
+    const suggestions: ChordSuggestion[] = [];
+    const degrees = getScaleDegrees(selectedKey);
+    const funcToChord: Record<string, string[]> = {
+      'I': [degrees[0]],
+      'vi': [degrees[5]],
+      'iii': [degrees[2]],
+      'IV': [degrees[3]],
+      'ii': [degrees[1]],
+      'V': [degrees[4], `${degrees[4]}7`],
+      'vii°': [degrees[6]],
+    };
+
+    suggestedFunctions.forEach(func => {
+      if (funcToChord[func]) {
+        funcToChord[func].forEach(chord => {
+          suggestions.push({ chord, function: func });
+        });
+      }
+    });
+    return suggestions;
   };
 
-  const getLiveSuggestions = (inputStr: string) => {
+  const getLiveSuggestions = (inputStr: string): ChordSuggestion[] => {
     const chords = inputStr.split(',').map(c => c.trim()).filter(c => c);
     if (chords.length === 0) return getSuggestions(['q0']);
 
@@ -325,7 +454,9 @@ const Validator = () => {
 
   const handleValidate = () => {
     setHasValidated(true);
-    validateProgression(input);
+    setIsAnimating(true);
+    setCurrentStep(0);
+    animateValidation(input);
   };
 
   useEffect(() => {
@@ -337,6 +468,7 @@ const Validator = () => {
       setActiveStates(['q0']);
       setChordHistory([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input]);
 
   const handleExample = (chords: string) => {
@@ -345,48 +477,44 @@ const Validator = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-secondary via-[hsl(215,28%,14%)] to-secondary text-foreground p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Link to="/" className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg border border-purple-500/20 transition-colors">
-            <Home className="w-4 h-4" />
-            <span className="text-sm">Exit</span>
-          </Link>
+          <div className="w-20"></div>
           <div className="flex items-center gap-3">
-            <Music className="w-8 h-8 text-purple-400" />
-            <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <Music className="w-8 h-8 text-primary" />
+            <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Chord Validator
             </h1>
           </div>
           <button
             onClick={() => setShowLearnMore(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-all hover:scale-105"
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/80 text-primary-foreground rounded-lg transition-all hover:scale-105"
           >
             <BookOpen className="w-4 h-4" />
             <span className="hidden sm:inline text-sm">Learn More</span>
           </button>
         </div>
 
-        <p className="text-center text-gray-300 text-sm mb-6">Powered by NFA Technology - Real-time Harmonic Validation</p>
+        <p className="text-center text-muted-foreground text-sm mb-6">Powered by NFA Technology - Real-time Harmonic Validation</p>
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-2 gap-6 mb-6">
           {/* Input Section */}
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-5 border border-purple-500/20">
+          <div className="bg-secondary/50 backdrop-blur rounded-2xl p-5 border border-primary/20">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-yellow-400" />
+                <Zap className="w-5 h-5 text-accent" />
                 <h2 className="text-lg font-semibold">Enter Chord Progression</h2>
               </div>
-              
               {/* Key Selector */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Key:</span>
+                <span className="text-xs text-muted-foreground">Key:</span>
                 <select
                   value={selectedKey}
                   onChange={(e) => handleKeyChange(e.target.value)}
-                  className="bg-slate-900/50 border border-purple-500/30 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                  className="bg-secondary/50 border border-primary/30 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
                 >
                   {majorKeys.map(k => (
                     <option key={k.key} value={k.key}>{k.name}</option>
@@ -399,22 +527,22 @@ const Validator = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Example: ${getScaleDegrees(selectedKey).slice(0, 4).join(', ')}`}
-              className="w-full h-28 bg-slate-900/50 border border-purple-500/30 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-mono text-lg"
+              className="w-full h-28 bg-secondary/50 border border-primary/30 rounded-xl p-4 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono text-lg"
             />
 
-            <p className="text-xs text-gray-400 mt-2 flex items-center gap-2">
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
               <Info className="w-3 h-3" />
-              Current key: <strong className="text-purple-400">{majorKeys.find(k => k.key === selectedKey)?.name}</strong>
+              Current key: <strong className="text-primary">{majorKeys.find(k => k.key === selectedKey)?.name}</strong>
             </p>
 
             <div className="flex flex-wrap gap-2 mt-4">
               <button
                 onClick={handleValidate}
-                disabled={!input.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+                disabled={!input.trim() || isAnimating}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/80 text-primary-foreground rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
               >
                 <Zap className="w-4 h-4" />
-                Validate
+                {isAnimating ? 'Validating...' : 'Validate'}
               </button>
               <button
                 onClick={() => {
@@ -424,17 +552,26 @@ const Validator = () => {
                   setActiveStates(['q0']);
                   setChordHistory([]);
                   setLiveSuggestions([]);
+                  setIsAnimating(false);
+                  setCurrentStep(0);
                 }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-sm"
+                disabled={isAnimating}
+                className="flex items-center gap-2 px-4 py-2.5 bg-muted hover:bg-muted/80 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RotateCcw className="w-4 h-4" />
                 Clear
               </button>
-              {result?.valid && result.chords.length > 0 && (
+              {input.trim() && (
                 <button
-                  onClick={() => playProgression(result.chords)}
-                  disabled={isPlaying}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                  onClick={() => {
+                    if (!hasValidated) {
+                      setHasValidated(true);
+                    }
+                    const chords = input.split(',').map(c => c.trim()).filter(c => c);
+                    playProgression(chords);
+                  }}
+                  disabled={isPlaying || isAnimating}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50 text-sm"
                 >
                   {isPlaying ? <Volume2 className="w-4 h-4 animate-pulse" /> : <Play className="w-4 h-4" />}
                   Play
@@ -444,19 +581,20 @@ const Validator = () => {
 
             {/* Live Suggestions */}
             {input.trim() && liveSuggestions.length > 0 && !hasValidated && (
-              <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-purple-500/20">
-                <h3 className="text-xs font-semibold text-purple-400 mb-2 flex items-center gap-2">
+              <div className="mt-4 p-3 bg-secondary/50 rounded-lg border border-primary/20">
+                <h3 className="text-xs font-semibold text-primary mb-2 flex items-center gap-2">
                   <Lightbulb className="w-3 h-3" />
                   Suggested next chords:
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {liveSuggestions.map((chord, i) => (
+                  {liveSuggestions.map((suggestion, i) => (
                     <button
                       key={i}
-                      onClick={() => setInput(input + (input.trim().endsWith(',') ? ' ' : ', ') + chord)}
-                      className="px-3 py-1 bg-purple-600/50 hover:bg-purple-600 rounded-full text-xs font-mono transition-colors"
+                      onClick={() => setInput(input + (input.trim().endsWith(',') ? ' ' : ', ') + suggestion.chord)}
+                      className="px-3 py-1.5 bg-primary/50 hover:bg-primary rounded-lg text-xs font-mono transition-colors flex items-center gap-1.5"
                     >
-                      {chord}
+                      <span className="font-bold">{suggestion.chord}</span>
+                      <span className="text-accent text-[10px]">({suggestion.function})</span>
                     </button>
                   ))}
                 </div>
@@ -465,17 +603,17 @@ const Validator = () => {
 
             {/* Examples */}
             <div className="mt-4">
-              <h3 className="text-xs font-semibold text-gray-400 mb-2">Quick Examples in {selectedKey} Major:</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground mb-2">Quick Examples in {selectedKey} Major:</h3>
               <div className="grid grid-cols-2 gap-2">
                 {getExamples().map((ex, i) => (
                   <button
                     key={i}
                     onClick={() => handleExample(ex.chords)}
-                    className="text-left p-2.5 bg-slate-900/50 hover:bg-purple-900/30 rounded-lg border border-purple-500/20 hover:border-purple-500/50 transition-all"
+                    className="text-left p-2.5 bg-secondary/50 hover:bg-primary/20 rounded-lg border border-primary/20 hover:border-primary/50 transition-all"
                   >
-                    <div className="text-xs text-purple-400 font-semibold">{ex.name}</div>
-                    <div className="text-[10px] text-gray-500">{ex.desc}</div>
-                    <div className="text-xs text-gray-400 font-mono mt-1">{ex.chords}</div>
+                    <div className="text-xs text-primary font-semibold">{ex.name}</div>
+                    <div className="text-[10px] text-muted-foreground">{ex.desc}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-1">{ex.chords}</div>
                   </button>
                 ))}
               </div>
@@ -483,17 +621,17 @@ const Validator = () => {
 
             {/* Invalid Examples */}
             <div className="mt-3">
-              <h3 className="text-xs font-semibold text-red-400 mb-2">❌ Try Invalid Examples:</h3>
-              <div className="grid grid-cols-2 gap-2">
+              <h3 className="text-xs font-semibold text-red-400 mb-2">❌  Invalid Examples:</h3>
+              <div className="grid grid-cols-3 gap-2">
                 {getInvalidExamples().map((ex, i) => (
                   <button
                     key={i}
                     onClick={() => handleExample(ex.chords)}
-                    className="text-left p-2.5 bg-slate-900/50 hover:bg-red-900/20 rounded-lg border border-red-500/20 hover:border-red-500/50 transition-all"
+                    className="text-left p-2.5 bg-secondary/50 hover:bg-red-900/20 rounded-lg border border-red-500/20 hover:border-red-500/50 transition-all"
                   >
                     <div className="text-xs text-red-400 font-semibold">{ex.name}</div>
-                    <div className="text-[10px] text-gray-500">{ex.desc}</div>
-                    <div className="text-xs text-gray-400 font-mono mt-1">{ex.chords}</div>
+                    <div className="text-[10px] text-muted-foreground">{ex.desc}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-1">{ex.chords}</div>
                   </button>
                 ))}
               </div>
@@ -501,109 +639,118 @@ const Validator = () => {
           </div>
 
           {/* NFA Visualization */}
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-5 border border-purple-500/20">
+          <div className="bg-secondary/50 backdrop-blur rounded-2xl p-5 border border-primary/20">
             <h2 className="text-lg font-semibold mb-4">NFA State Diagram</h2>
-            <div className="relative bg-slate-900/50 rounded-xl border border-purple-500/20 overflow-hidden" style={{ height: '360px' }}>
+            <div className="relative bg-secondary/50 rounded-xl border border-primary/20 overflow-hidden" style={{ height: '360px' }}>
               {!hasValidated && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-10">
+                <div className="absolute inset-0 flex items-center justify-center bg-secondary/80 backdrop-blur-sm z-10">
                   <div className="text-center">
-                    <Zap className="w-10 h-10 text-purple-400 mx-auto mb-2 animate-pulse" />
-                    <p className="text-gray-400 text-sm">Click "Validate" to see NFA states</p>
+                    <Zap className="w-10 h-10 text-primary mx-auto mb-2 animate-pulse" />
+                    <p className="text-muted-foreground text-sm">Click "Validate" to see NFA states</p>
                   </div>
+                </div>
+              )}
+              {isAnimating && (
+                <div className="absolute top-4 left-4 bg-primary/90 backdrop-blur px-4 py-2 rounded-lg z-20 flex items-center gap-2">
+                  <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+                  <span className="text-sm font-semibold text-primary-foreground">Processing Step {currentStep}...</span>
                 </div>
               )}
               <svg viewBox="0 0 580 360" className="w-full h-full">
                 <defs>
                   <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-                    <polygon points="0 0, 10 4, 0 8" fill="#8b5cf6" />
+                    <polygon points="0 0, 10 4, 0 8" fill="#38bdf8" />
                   </marker>
                   <marker id="arrowhead-active" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-                    <polygon points="0 0, 10 4, 0 8" fill="#fbbf24" />
+                    <polygon points="0 0, 10 4, 0 8" fill="#67e8f9" />
+                  </marker>
+                  <marker id="arrowhead-red" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                    <polygon points="0 0, 10 4, 0 8" fill="#ef4444" />
                   </marker>
                 </defs>
 
                 {/* Connection lines */}
                 {/* q0 -> q1 */}
-                <line x1="115" y1="180" x2="180" y2="180" stroke="#6b7280" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                <text x="147" y="168" textAnchor="middle" className="fill-gray-400 text-[10px]">I,vi,iii</text>
+                <line x1="115" y1="180" x2="180" y2="180" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="147" y="170" textAnchor="middle" className="fill-muted-foreground text-[10px]">I,vi,iii</text>
 
                 {/* q1 -> q2 (curved up) */}
-                <path d="M 255 155 Q 290 60 325 95" fill="none" stroke="#6b7280" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                <text x="290" y="55" textAnchor="middle" className="fill-gray-400 text-[10px]">IV,ii</text>
+                <path d="M 235 155 Q 270 100 330 90" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="265" y="105" textAnchor="middle" className="fill-muted-foreground text-[10px]">IV,ii</text>
 
                 {/* q1 -> q3 (curved down) */}
-                <path d="M 255 205 Q 290 300 325 265" fill="none" stroke="#6b7280" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                <text x="290" y="320" textAnchor="middle" className="fill-gray-400 text-[10px]">V,vii°</text>
+                <path d="M 235 205 Q 280 270 330 270" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="265" y="265" textAnchor="middle" className="fill-muted-foreground text-[10px]">V,vii°</text>
 
                 {/* q2 -> q3 */}
-                <line x1="360" y1="115" x2="360" y2="240" stroke="#6b7280" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                <text x="380" y="180" textAnchor="start" className="fill-gray-400 text-[10px]">V,vii°</text>
+                <line x1="360" y1="115" x2="360" y2="245" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="375" y="180" textAnchor="start" className="fill-muted-foreground text-[10px]">V,vii°</text>
 
                 {/* q3 -> q1 (curved back) */}
-                <path d="M 325 295 Q 220 340 220 215" fill="none" stroke="#10b981" strokeWidth="2.5" markerEnd="url(#arrowhead)" />
-                <text x="255" y="335" textAnchor="middle" className="fill-emerald-400 text-[10px]">I,vi,iii ✓</text>
+                <path d="M 328 295 Q 220 350 210 215" fill="none" stroke="#14b8a6" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="240" y="330" textAnchor="middle" className="fill-teal-400 text-[10px]">I,vi,iii ✓</text>
 
                 {/* q1 self-loop */}
-                <path d="M 200 145 Q 175 100 240 145" fill="none" stroke="#6b7280" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
-                <text x="205" y="95" textAnchor="middle" className="fill-gray-500 text-[9px]">loop</text>
+                <path d="M 200 158 Q 200 90 230 150" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="210" y="115" textAnchor="middle" className="fill-muted-foreground text-[9px]">I,vi,iii</text>
 
                 {/* q3 self-loop */}
-                <path d="M 395 265 Q 430 260 395 300" fill="none" stroke="#6b7280" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
-                <text x="440" y="280" textAnchor="start" className="fill-gray-500 text-[9px]">loop</text>
+                <path d="M 392 270 Q 430 260 392 300" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="400" y="260" textAnchor="start" className="fill-muted-foreground text-[9px]">V,vii°</text>
 
                 {/* Reject paths (dashed) */}
-                <line x1="395" y1="80" x2="465" y2="155" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrowhead)" />
-                <line x1="395" y1="280" x2="465" y2="205" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrowhead)" />
+                <path d="M 90 165 Q 295 -100 510 150" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrowhead-red)" />
+                <text x="300" y="25" textAnchor="middle" className="fill-red-400 text-[9px] font-semibold">IV,ii,V,vii°</text>
+                <path d="M 352 90 Q 400 70 500 150" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrowhead-red)" />
+                <text x="420" y="115" textAnchor="middle" className="fill-red-400 text-[9px]">I,vi,iii</text>
+                <path d="M 352 280 Q 440 300 500 210" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4" markerEnd="url(#arrowhead-red)" />
+                <text x="470" y="270" textAnchor="middle" className="fill-red-400 text-[9px]">IV,ii</text>
 
                 {/* Draw states */}
                 {Object.entries(states).map(([key, state]) => {
                   const isActive = activeStates.includes(key);
                   const isAccept = key === 'q1';
                   const colors: Record<string, { fill: string; stroke: string }> = {
-                    'q0': { fill: '#8b5cf6', stroke: '#a78bfa' },
-                    'q1': { fill: '#3b82f6', stroke: '#60a5fa' },
-                    'q2': { fill: '#22c55e', stroke: '#4ade80' },
-                    'q3': { fill: '#f97316', stroke: '#fb923c' },
+                    'q0': { fill: '#06b6d4', stroke: '#22d3ee' },
+                    'q1': { fill: '#0ea5e9', stroke: '#38bdf8' },
+                    'q2': { fill: '#14b8a6', stroke: '#2dd4bf' },
+                    'q3': { fill: '#3b82f6', stroke: '#60a5fa' },
                     'q_reject': { fill: '#ef4444', stroke: '#f87171' },
                   };
                   const color = colors[key];
 
                   return (
                     <g key={key}>
-                      {/* Outer ring for accept state */}
                       {isAccept && (
-                        <circle
-                          cx={state.position.x}
-                          cy={state.position.y}
-                          r="42"
-                          fill="none"
-                          stroke={isActive ? "#fbbf24" : "#3b82f6"}
-                          strokeWidth="2"
-                        />
-                      )}
-                      {/* Active glow */}
-                      {isActive && (
                         <circle
                           cx={state.position.x}
                           cy={state.position.y}
                           r="38"
                           fill="none"
-                          stroke="#fbbf24"
+                          stroke={isActive ? "#67e8f9" : "#38bdf8"}
+                          strokeWidth="1.5"
+                        />
+                      )}
+                      {isActive && !isAccept && (
+                        <circle
+                          cx={state.position.x}
+                          cy={state.position.y}
+                          r="38"
+                          fill="none"
+                          stroke="#67e8f9"
                           strokeWidth="3"
                           className="animate-pulse"
                         />
                       )}
-                      {/* Main circle */}
                       <circle
                         cx={state.position.x}
                         cy={state.position.y}
                         r="32"
                         fill={isActive ? color.fill : '#374151'}
-                        stroke={isActive ? '#fbbf24' : color.stroke}
+                        stroke={isActive ? '#67e8f9' : color.stroke}
                         strokeWidth={isActive ? 3 : 2}
                         className="transition-all duration-300"
                       />
-                      {/* State label */}
                       <text
                         x={state.position.x}
                         y={state.position.y + 1}
@@ -613,7 +760,6 @@ const Validator = () => {
                       >
                         {state.name}
                       </text>
-                      {/* State ID below */}
                       <text
                         x={state.position.x}
                         y={state.position.y + 50}
@@ -627,23 +773,23 @@ const Validator = () => {
                 })}
 
                 {/* Start arrow */}
-                <line x1="20" y1="180" x2="45" y2="180" stroke="#8b5cf6" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                <text x="10" y="170" className="fill-purple-400 text-[10px]">start</text>
+                <line x1="20" y1="180" x2="45" y2="180" stroke="#38bdf8" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                <text x="10" y="170" className="fill-primary text-[10px]">start</text>
               </svg>
             </div>
 
             {/* Chord History */}
             {chordHistory.length > 0 && (
-              <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-purple-500/20">
-                <h3 className="text-xs font-semibold text-gray-400 mb-2">Transition Path:</h3>
+              <div className="mt-4 p-3 bg-secondary/50 rounded-lg border border-primary/20">
+                <h3 className="text-xs font-semibold text-muted-foreground mb-2">Transition Path:</h3>
                 <div className="flex flex-wrap items-center gap-1">
                   {chordHistory.map((item, i) => (
                     <React.Fragment key={i}>
-                      <span className="px-2.5 py-1 bg-purple-600 rounded-full text-xs font-mono">
-                        {item.chord} <span className="text-purple-300">({item.function})</span>
+                      <span className="px-2.5 py-1 bg-primary rounded-full text-xs font-mono text-primary-foreground">
+                        {item.chord} <span className="text-accent">({item.function})</span>
                       </span>
                       {i < chordHistory.length - 1 && (
-                        <span className="text-purple-400 text-xs">→</span>
+                        <span className="text-primary text-xs">→</span>
                       )}
                     </React.Fragment>
                   ))}
@@ -655,37 +801,38 @@ const Validator = () => {
 
         {/* Results Section */}
         {result && (
-          <div className={`bg-slate-800/50 backdrop-blur rounded-2xl p-5 border ${
-            result.valid ? 'border-emerald-500/50' : 'border-red-500/50'
+          <div className={`bg-secondary/50 backdrop-blur rounded-2xl p-5 border ${
+            result.valid ? 'border-teal-500/50' : 'border-red-500/50'
           } mb-6`}>
             <div className="flex items-start gap-4">
-              <div className={`p-2.5 rounded-full ${result.valid ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+              <div className={`p-2.5 rounded-full ${result.valid ? 'bg-teal-500/20' : 'bg-red-500/20'}`}>
                 {result.valid ? (
-                  <CheckCircle className="w-6 h-6 text-emerald-400" />
+                  <CheckCircle className="w-6 h-6 text-teal-400" />
                 ) : (
                   <XCircle className="w-6 h-6 text-red-400" />
                 )}
               </div>
               <div className="flex-1">
-                <h3 className={`text-xl font-bold mb-2 ${result.valid ? 'text-emerald-400' : 'text-red-400'}`}>
+                <h3 className={`text-xl font-bold mb-2 ${result.valid ? 'text-teal-400' : 'text-red-400'}`}>
                   {result.message}
                 </h3>
-                <p className="text-gray-300 text-sm">{result.explanation}</p>
+                <p className="text-muted-foreground text-sm whitespace-pre-line">{result.explanation}</p>
 
                 {result.suggestions && result.suggestions.length > 0 && (
-                  <div className="mt-4 bg-slate-900/50 rounded-lg p-3 border border-purple-500/20">
-                    <h4 className="font-semibold text-purple-400 text-sm mb-2 flex items-center gap-2">
+                  <div className="mt-4 bg-secondary/50 rounded-lg p-3 border border-primary/20">
+                    <h4 className="font-semibold text-primary text-sm mb-2 flex items-center gap-2">
                       <Lightbulb className="w-4 h-4" />
-                      Suggested next chords:
+                      Suggested next chords to complete:
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                      {result.suggestions.map((chord: string, i: number) => (
+                      {result.suggestions.map((suggestion, i) => (
                         <button
                           key={i}
-                          onClick={() => setInput(input + (input.trim() ? ', ' : '') + chord)}
-                          className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-full text-xs font-mono transition-colors"
+                          onClick={() => setInput(input + (input.trim() ? ', ' : '') + suggestion.chord)}
+                          className="px-3 py-1.5 bg-primary hover:bg-primary/80 text-primary-foreground rounded-lg text-xs font-mono transition-colors flex items-center gap-1.5"
                         >
-                          {chord}
+                          <span className="font-bold">{suggestion.chord}</span>
+                          <span className="text-accent text-[10px]">({suggestion.function})</span>
                         </button>
                       ))}
                     </div>
@@ -697,7 +844,7 @@ const Validator = () => {
         )}
 
         {/* Footer */}
-        <div className="text-center text-gray-500 text-xs">
+        <div className="text-center text-muted-foreground text-xs">
           <p>Powered by NFA • Group 4 BSCS 3-2 • COSC-302</p>
         </div>
       </div>
@@ -705,14 +852,14 @@ const Validator = () => {
       {/* Learn More Modal */}
       {showLearnMore && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-purple-500/30">
-            <div className="sticky top-0 bg-slate-800 border-b border-purple-500/30 p-5 flex items-center justify-between">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <div className="bg-secondary rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-primary/30">
+            <div className="sticky top-0 bg-secondary border-b border-primary/30 p-5 flex items-center justify-between">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 How It Works
               </h2>
               <button
                 onClick={() => setShowLearnMore(false)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -721,19 +868,19 @@ const Validator = () => {
               {/* What is NFA */}
               <section>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-purple-600/20 rounded-lg">
-                    <Cpu className="w-5 h-5 text-purple-400" />
+                  <div className="p-2 bg-primary/20 rounded-lg">
+                    <Cpu className="w-5 h-5 text-primary" />
                   </div>
-                  <h3 className="text-xl font-bold text-purple-400">What is an NFA?</h3>
+                  <h3 className="text-xl font-bold text-primary">What is an NFA?</h3>
                 </div>
-                <div className="bg-slate-900/50 rounded-xl p-4 border border-purple-500/20">
-                  <p className="text-gray-300 text-sm mb-3">
-                    A <strong className="text-purple-400">Nondeterministic Finite Automaton (NFA)</strong> is a mathematical 
+                <div className="bg-secondary/50 rounded-xl p-4 border border-primary/20">
+                  <p className="text-muted-foreground text-sm mb-3">
+                    A <strong className="text-primary">Nondeterministic Finite Automaton (NFA)</strong> is a mathematical 
                     model that processes sequences of symbols according to predefined rules, perfect for modeling chord progressions.
                   </p>
-                  <div className="bg-slate-800 rounded-lg p-3 font-mono text-xs">
-                    <p className="text-emerald-400">M = (Q, Σ, δ, q₀, F)</p>
-                    <ul className="mt-2 space-y-1 text-gray-300">
+                  <div className="bg-muted rounded-lg p-3 font-mono text-xs">
+                    <p className="text-teal-400">M = (Q, Σ, δ, q₀, F)</p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground">
                       <li>• <strong>Q</strong>: States (Tonic, Dominant, etc.)</li>
                       <li>• <strong>Σ</strong>: Input alphabet (C, Dm, G7...)</li>
                       <li>• <strong>δ</strong>: Transition function</li>
@@ -747,16 +894,16 @@ const Validator = () => {
               {/* Validation Process */}
               <section>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-blue-600/20 rounded-lg">
-                    <Code className="w-5 h-5 text-blue-400" />
+                  <div className="p-2 bg-sky-600/20 rounded-lg">
+                    <Code className="w-5 h-5 text-sky-400" />
                   </div>
-                  <h3 className="text-xl font-bold text-blue-400">Validation Process</h3>
+                  <h3 className="text-xl font-bold text-sky-400">Validation Process</h3>
                 </div>
                 <div className="grid gap-3">
                   {['Tokenization - Parse chord symbols', 'State Transitions - Follow NFA rules', 'Acceptance Check - Verify resolution'].map((step, i) => (
-                    <div key={i} className="bg-slate-900/50 rounded-xl p-3 border border-blue-500/20 flex items-center gap-3">
-                      <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center font-bold text-sm">{i + 1}</div>
-                      <p className="text-gray-300 text-sm">{step}</p>
+                    <div key={i} className="bg-secondary/50 rounded-xl p-3 border border-sky-500/20 flex items-center gap-3">
+                      <div className="w-7 h-7 bg-sky-600 rounded-full flex items-center justify-center font-bold text-sm">{i + 1}</div>
+                      <p className="text-muted-foreground text-sm">{step}</p>
                     </div>
                   ))}
                 </div>
@@ -765,24 +912,24 @@ const Validator = () => {
               {/* Music Theory */}
               <section>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-emerald-600/20 rounded-lg">
-                    <GraduationCap className="w-5 h-5 text-emerald-400" />
+                  <div className="p-2 bg-teal-600/20 rounded-lg">
+                    <GraduationCap className="w-5 h-5 text-teal-400" />
                   </div>
-                  <h3 className="text-xl font-bold text-emerald-400">Music Theory</h3>
+                  <h3 className="text-xl font-bold text-teal-400">Music Theory</h3>
                 </div>
                 <div className="grid md:grid-cols-2 gap-3">
-                  <div className="bg-slate-900/50 rounded-xl p-4 border border-emerald-500/20">
-                    <h4 className="font-semibold text-emerald-400 mb-2 text-sm">Harmonic Functions</h4>
-                    <ul className="space-y-1 text-gray-300 text-xs">
-                      <li><strong className="text-blue-400">I (Tonic)</strong> - Home, stability</li>
-                      <li><strong className="text-green-400">IV (Subdominant)</strong> - Pre-dominant</li>
-                      <li><strong className="text-orange-400">V (Dominant)</strong> - Maximum tension</li>
-                      <li><strong className="text-teal-400">ii (Supertonic)</strong> - Common pre-dominant</li>
+                  <div className="bg-secondary/50 rounded-xl p-4 border border-teal-500/20">
+                    <h4 className="font-semibold text-teal-400 mb-2 text-sm">Harmonic Functions</h4>
+                    <ul className="space-y-1 text-muted-foreground text-xs">
+                      <li><strong className="text-sky-400">I (Tonic)</strong> - Home, stability</li>
+                      <li><strong className="text-teal-400">IV (Subdominant)</strong> - Pre-dominant</li>
+                      <li><strong className="text-blue-400">V (Dominant)</strong> - Maximum tension</li>
+                      <li><strong className="text-cyan-400">ii (Supertonic)</strong> - Common pre-dominant</li>
                     </ul>
                   </div>
-                  <div className="bg-slate-900/50 rounded-xl p-4 border border-emerald-500/20">
-                    <h4 className="font-semibold text-emerald-400 mb-2 text-sm">Common Progressions</h4>
-                    <ul className="space-y-1 text-gray-300 text-xs">
+                  <div className="bg-secondary/50 rounded-xl p-4 border border-teal-500/20">
+                    <h4 className="font-semibold text-teal-400 mb-2 text-sm">Common Progressions</h4>
+                    <ul className="space-y-1 text-muted-foreground text-xs">
                       <li><strong>I-IV-V-I</strong> - Most common</li>
                       <li><strong>I-vi-IV-V</strong> - 50s progression</li>
                       <li><strong>ii-V-I</strong> - Jazz cadence</li>
@@ -793,21 +940,21 @@ const Validator = () => {
 
               {/* Academic Context */}
               <section>
-                <div className="bg-slate-900/50 rounded-xl p-4 border border-yellow-500/20">
-                  <h4 className="font-semibold text-yellow-400 mb-2 text-sm">Academic Context</h4>
-                  <p className="text-gray-300 text-xs mb-2">
+                <div className="bg-secondary/50 rounded-xl p-4 border border-amber-500/20">
+                  <h4 className="font-semibold text-amber-400 mb-2 text-sm">Academic Context</h4>
+                  <p className="text-muted-foreground text-xs mb-2">
                     COSC-302: Automata and Language Theory
                   </p>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-muted-foreground text-xs">
                     <strong>Group 4 | BSCS 3-2</strong> • Bernabe, Bolante, Fortus, Petero, Punzalan, Salazar, Vicedo
                   </p>
                 </div>
               </section>
             </div>
-            <div className="sticky bottom-0 bg-slate-800 border-t border-purple-500/30 p-4">
+            <div className="sticky bottom-0 bg-secondary border-t border-primary/30 p-4">
               <button
                 onClick={() => setShowLearnMore(false)}
-                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-colors text-sm"
+                className="w-full py-2.5 bg-primary hover:bg-primary/80 text-primary-foreground rounded-xl font-semibold transition-colors text-sm"
               >
                 Got It - Start Validating!
               </button>
