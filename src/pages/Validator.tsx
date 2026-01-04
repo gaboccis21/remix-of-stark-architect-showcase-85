@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Volume2, Info, Zap, CheckCircle, XCircle, Music, Lightbulb, RotateCcw, BookOpen, X, Code, Cpu, GraduationCap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Play, Volume2, Info, Zap, CheckCircle, XCircle, Music, Lightbulb, RotateCcw, BookOpen, X, Code, Cpu, GraduationCap, Home } from 'lucide-react';
 
 interface ChordSuggestion {
   chord: string;
@@ -481,7 +482,13 @@ const Validator = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="w-20"></div>
+          <Link
+            to="/"
+            className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg transition-all hover:scale-105"
+          >
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline text-sm">Exit</span>
+          </Link>
           <div className="flex items-center gap-3">
             <Music className="w-8 h-8 text-primary" />
             <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
